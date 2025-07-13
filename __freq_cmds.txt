@@ -1,0 +1,3 @@
+rosparam get use_sim_time
+
+rosparam set use_sim_time false
