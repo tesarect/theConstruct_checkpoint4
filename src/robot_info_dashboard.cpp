@@ -101,13 +101,14 @@ void CVUIROSDashInfo::run() {
 
     //        ================ Teleoperation Buttons ================
 
-    int buttons_x_offset = 100;
-    int buttons_y_offset = y_offset + 20;
+    int buttons_x_offset = 150;
+    // int buttons_y_offset = y_offset + 200;
+    int buttons_y_offset = 200;
 
     // Generic lambda for veloity adjustment
     auto adjust_velocity = [&](double *velocity, double step, double max_vel) {
       *velocity = std::max(-max_vel, std::min(*velocity + step, max_vel));
-      twist_pub_.publish(twist_msg);
+      //   twist_pub_.publish(twist_msg);
     };
 
     // Reset the velocity values
@@ -154,24 +155,27 @@ void CVUIROSDashInfo::run() {
                       max_linear_velocity);
     }
 
+    // current twist message in every loop - keeps moving
+    twist_pub_.publish(twist_msg);
+
     // Velocity window
-    int vel_x_offset = 20;
-    int vel_y_offset = buttons_y_offset + 30;
+    int vel_x_offset = 5;
+    int vel_y_offset = buttons_y_offset + 40;
     // Create window at (320, 20) with size 120x40 (width x height) and title
     // cvui::window(frame, 320, 20, 120, 40, "Linear velocity:");
-    cvui::window(frame, vel_x_offset, vel_y_offset, 120, 40,
+    cvui::window(frame, vel_x_offset, vel_y_offset, 190, 40,
                  "Linear velocity:");
     // Show the current velocity inside the window
-    cvui::printf(frame, vel_x_offset + 25, vel_y_offset + 5, 0.4, 0xff0000,
+    cvui::printf(frame, vel_x_offset + 100, vel_y_offset + 25, 0.4, 0xff0000,
                  "%.02f m/sec", twist_msg.linear.x);
 
-    vel_x_offset += 110;
+    vel_x_offset += 200;
     // Create window at (320 60) with size 120x40 (width x height) and title
     // cvui::window(frame, 320, 60, 120, 40, "Angular velocity:");
-    cvui::window(frame, vel_x_offset, vel_y_offset, 120, 40,
+    cvui::window(frame, vel_x_offset, vel_y_offset, 190, 40,
                  "Angular velocity:");
     // Show the current velocity inside the window
-    cvui::printf(frame, vel_x_offset + 25, vel_y_offset + 5, 0.4, 0xff0000,
+    cvui::printf(frame, vel_x_offset + 100, vel_y_offset + 25, 0.4, 0xff0000,
                  "%.02f rad/sec", twist_msg.angular.z);
 
     //        ================ Current Velocity ================
