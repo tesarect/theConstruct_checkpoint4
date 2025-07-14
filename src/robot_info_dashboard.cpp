@@ -1,17 +1,3 @@
-/*
-The CVUIROSDashInfo class creates a graphical user interface featuring a
-window and text. When a ROS message is received, the gui displays the incomming
-data inside the window.
-
-To use this class, include the show_received_messages.h header file in your
-main program file and create an instance of the CVUIROSDashInfo class. You
-would then call the 'run' function on the instance to start the program.
-
-Author: Roberto Zegers
-Date: February 2023
-License: BSD-3-Clause
-*/
-
 #include "robot_gui/robot_info_dashboard.h"
 #include <vector>
 
@@ -19,8 +5,11 @@ CVUIROSDashInfo::CVUIROSDashInfo() {
   // Initialize ROS node
   ros::NodeHandle nh;
 
-  sub_ = nh.subscribe<robotinfo_msgs::RobotInfo10Fields>(
+  info_sub_ = nh.subscribe<robotinfo_msgs::RobotInfo10Fields>(
       ui_topic_name, 2, &CVUIROSDashInfo::msgCallback, this);
+
+  odom_sub_ = nh.subscribe<nav_msgs::Odometry>(
+      odom_topic_name, 2, &CVUIROSDashInfo::odom_msgCallback, this);
 
   twist_pub_ = nh.advertise<geometry_msgs::Twist>(twist_topic_name, 1);
 }
@@ -29,6 +18,13 @@ void CVUIROSDashInfo::msgCallback(
     const robotinfo_msgs::RobotInfo10Fields::ConstPtr &msg) {
   robot_data = *msg;
   ROS_DEBUG("Robot info received");
+}
+
+void CVUIROSDashInfo::odom_msgCallback(
+    const nav_msgs::Odometry::ConstPtr &msg) {
+  odom_data = *msg;
+  ROS_DEBUG("Position x,y,z: [%0.2f, %0.2f, %0.2f]", msg->pose.pose.position.x,
+            msg->pose.pose.position.y, msg->pose.pose.position.z);
 }
 
 void CVUIROSDashInfo::reset_twistmsg() {
@@ -40,31 +36,9 @@ void CVUIROSDashInfo::reset_twistmsg() {
   twist_msg.angular.z = 0.0;
 }
 
-//   auto inc_linear_vel = [&]() {
-//     twist_msg.linear.x = std::min(twist_msg.linear.x + linear_velocity_step,
-//     max_linear_velocity); twist_pub_.publish(twist_msg);
-//   };
-
-//   auto dec_linear_vel = [&]() {
-//     twist_msg.linear.x = std::max(twist_msg.linear.x - linear_velocity_step,
-//     -max_linear_velocity); twist_pub_.publish(twist_msg);
-//   };
-
-//   auto inc_angular_vel = [&]() {
-//     twist_msg.angular.z = std::min(twist_msg.angular.z +
-//     angular_velocity_step, max_angular_velocity);
-//     twist_pub_.publish(twist_msg);
-//   };
-
-//   auto dec_angular_vel = [&]() {
-//     twist_msg.angular.z = std::max(twist_msg.angular.z -
-//     angular_velocity_step, -max_angular_velocity);
-//     twist_pub_.publish(twist_msg);
-//   };
-
 void CVUIROSDashInfo::run() {
   // create a frame
-  cv::Mat frame = cv::Mat(600, 400, CV_8UC3);
+  cv::Mat frame = cv::Mat(1000, 400, CV_8UC3);
 
   // Init a OpenCV window and tell cvui to use it.
   cv::namedWindow(WINDOW_NAME);
@@ -102,13 +76,11 @@ void CVUIROSDashInfo::run() {
     //        ================ Teleoperation Buttons ================
 
     int buttons_x_offset = 150;
-    // int buttons_y_offset = y_offset + 200;
-    int buttons_y_offset = 200;
+    int buttons_y_offset = 220;
 
     // Generic lambda for veloity adjustment
     auto adjust_velocity = [&](double *velocity, double step, double max_vel) {
       *velocity = std::max(-max_vel, std::min(*velocity + step, max_vel));
-      //   twist_pub_.publish(twist_msg);
     };
 
     // Reset the velocity values
@@ -119,7 +91,6 @@ void CVUIROSDashInfo::run() {
 
     // Forward button
     if (cvui::button(frame, buttons_x_offset, buttons_y_offset, " Forward ")) {
-      // The button was clicked, update the Twist message
       adjust_velocity(&twist_msg.linear.x, linear_velocity_step,
                       max_linear_velocity);
     }
@@ -127,14 +98,12 @@ void CVUIROSDashInfo::run() {
     // Stop button
     buttons_y_offset += 30;
     if (cvui::button(frame, buttons_x_offset, buttons_y_offset, "   Stop  ")) {
-      // The button was clicked, update the Twist message
       stop_robot();
     }
 
     // Left button
     if (cvui::button(frame, buttons_x_offset - 70, buttons_y_offset,
                      " Left ")) {
-      // The button was clicked, update the Twist message
       adjust_velocity(&twist_msg.angular.z, angular_velocity_step,
                       max_angular_velocity);
     }
@@ -142,7 +111,6 @@ void CVUIROSDashInfo::run() {
     // Right button
     if (cvui::button(frame, buttons_x_offset + 95, buttons_y_offset,
                      " Right ")) {
-      // The button was clicked, update the Twist message
       adjust_velocity(&twist_msg.angular.z, -angular_velocity_step,
                       max_angular_velocity);
     }
@@ -155,14 +123,15 @@ void CVUIROSDashInfo::run() {
                       max_linear_velocity);
     }
 
-    // current twist message in every loop - keeps moving
+    // current twist msg on main loop - to keep moving until its is `STOPPED`
     twist_pub_.publish(twist_msg);
+
+    //        ================ Current Velocity ================
 
     // Velocity window
     int vel_x_offset = 5;
     int vel_y_offset = buttons_y_offset + 40;
-    // Create window at (320, 20) with size 120x40 (width x height) and title
-    // cvui::window(frame, 320, 20, 120, 40, "Linear velocity:");
+
     cvui::window(frame, vel_x_offset, vel_y_offset, 190, 40,
                  "Linear velocity:");
     // Show the current velocity inside the window
@@ -170,15 +139,35 @@ void CVUIROSDashInfo::run() {
                  "%.02f m/sec", twist_msg.linear.x);
 
     vel_x_offset += 200;
-    // Create window at (320 60) with size 120x40 (width x height) and title
-    // cvui::window(frame, 320, 60, 120, 40, "Angular velocity:");
+
     cvui::window(frame, vel_x_offset, vel_y_offset, 190, 40,
                  "Angular velocity:");
     // Show the current velocity inside the window
     cvui::printf(frame, vel_x_offset + 100, vel_y_offset + 25, 0.4, 0xff0000,
                  "%.02f rad/sec", twist_msg.angular.z);
 
-    //        ================ Current Velocity ================
+    //        ================ Robot Position ================
+
+    int odo_x_offset = 5;
+    int odo_y_offset = 375;
+
+    cvui::text(frame, odo_x_offset, odo_y_offset,
+               "Estimated robot position based off odometery");
+
+    odo_y_offset += 15;
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "X");
+    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.0f", odom_data.pose.pose.position.x);
+
+    odo_x_offset += 132;
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "Y");
+    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.0f", odom_data.pose.pose.position.y);
+
+    odo_x_offset += 132;
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "Z");
+    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.0f", odom_data.pose.pose.position.z);
 
     // Update cvui internal stuff
     cvui::update();
