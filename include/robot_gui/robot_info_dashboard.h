@@ -23,7 +23,6 @@ private:
   std::string ui_topic_name = "robot_info";
 
   // Subscriber
-  //   ros::Subscriber sub_;
   // robot_info subscriber
   ros::Subscriber info_sub_;
   robotinfo_msgs::RobotInfo10Fields robot_data;
@@ -33,7 +32,7 @@ private:
   nav_msgs::Odometry odom_data;
   std::string odom_topic_name = "odom";
   void odom_msgCallback(const nav_msgs::Odometry::ConstPtr &msg);
-  // TODO : need to see change this to template - subs and pubs
+  // TODO : do this with template - subs
 
   // Publisher - cmd_vel
   double linear_velocity_step = 0.1;
@@ -47,12 +46,10 @@ private:
   void reset_twistmsg();
 
   // Distance tracker service
-  ros::ServiceClient distance_client_;
-  std::string distance_service_response = "Click 'Get Distance' button";
-  bool service_available_ = false;
-  bool call_distance_service();
-  bool start_distance_service();
-  void check_distance_service_availability();
+  ros::ServiceClient get_distance_client_;
+  std::string distance_display = "0.00";
+  bool call_get_distance_service();
+  bool call_reset_distance_service();
 
   const std::string WINDOW_NAME = "ROBOT INFO DASHBOARD";
 };

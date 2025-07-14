@@ -1,3 +1,11 @@
 rosparam get use_sim_time
 
 rosparam set use_sim_time false
+
+roslaunch mir_gazebo mir_maze_world.launch
+
+rosrun robot_info agv_robot_info_node
+
+rosrun distance_tracker_service distance_tracker_service
+
+rosrun robot_gui robot_gui_node

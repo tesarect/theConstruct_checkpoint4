@@ -14,148 +14,42 @@ CVUIROSDashInfo::CVUIROSDashInfo() {
 
   twist_pub_ = nh.advertise<geometry_msgs::Twist>(twist_topic_name, 1);
 
-  //   start_distance_service();
-  distance_client_ = nh.serviceClient<std_srvs::Trigger>("/get_distance");
-  check_distance_service_availability();
+  // Service clients - need to be initiated form cmd line
+  // `rosrun distance_tracker_service distance_tracker_service`
+  get_distance_client_ = nh.serviceClient<std_srvs::Trigger>("/get_distance");
 }
 
-void CVUIROSDashInfo::check_distance_service_availability() {
-  if (ros::service::exists("/get_distance", false)) {
-    ROS_INFO("Distance service is available");
-    distance_service_response = "Service Available - Click to get distance";
-    service_available_ = true;
-  } else {
-    ROS_INFO("Distance service not available");
-    distance_service_response = "Service NOT Available - Click to start";
-    service_available_ = false;
-  }
-}
-
-bool CVUIROSDashInfo::start_distance_service() {
-  // Check if service exists
-  //   if (ros::service::exists("/get_distance", false)) {
-  //     ROS_INFO("Distance service already running");
-  //     distance_service_response = "Distance service ready";
-  //     return true;
-  //   }
-
-  //   ROS_INFO("Distance service not found, starting it...");
-  //   distance_service_response = "Starting distance service...";
-
-  //   // Start the service using system call
-  //   std::string command =
-  //       "rosrun distance_tracker_service distance_tracker_service &";
-  //   int result = system(command.c_str());
-
-  //   if (result != 0) {
-  //     ROS_ERROR("Failed to start distance service");
-  //     distance_service_response = "ERROR: Could not start distance service";
-  //     return false;
-  //   }
-
-  //   // Wait for service to become available
-  //   ROS_INFO("Waiting for distance service to start...");
-  //   ros::Time start_time = ros::Time::now();
-  //   ros::Duration timeout(10.0); // 10 second timeout
-
-  //   while (ros::Time::now() - start_time < timeout) {
-  //     if (ros::service::exists("/get_distance", false)) {
-  //       ROS_INFO("Distance service started successfully!");
-  //       distance_service_response = "Distance service ready";
-  //       return true;
-  //     }
-  //     ros::Duration(0.5).sleep(); // Check every 500ms
-  //     ros::spinOnce();
-  //   }
-
-  //   ROS_WARN("Timeout waiting for distance service to start");
-  //   distance_service_response = "WARNING: Distance service startup timeout";
-  //   return false;
-  if (ros::service::exists("/get_distance", false)) {
-    ROS_INFO("Distance service already running");
-    distance_service_response = "Distance service ready";
-    return true;
-  }
-
-  ROS_INFO("Distance service not found, starting it...");
-  distance_service_response = "Starting distance service...";
-
-  // Start the service using system call
-  std::string command =
-      "rosrun distance_tracker_service distance_tracker_service &";
-  int result = system(command.c_str());
-
-  if (result != 0) {
-    ROS_ERROR("Failed to start distance service");
-    distance_service_response = "ERROR: Could not start distance service";
-    return false;
-  }
-
-  // Use ROS's built-in service waiting method
-  ROS_INFO("Waiting for distance service to start...");
-  if (distance_client_.waitForExistence(ros::Duration(15.0))) {
-    ROS_INFO("Distance service started successfully!");
-    distance_service_response = "Distance service ready";
-    return true;
-  } else {
-    ROS_WARN("Timeout waiting for distance service to start");
-    distance_service_response = "WARNING: Distance service startup timeout";
-    return false;
-  }
-}
-
-bool CVUIROSDashInfo::call_distance_service() {
-  // If service not available, try to start it
-  if (!service_available_ || !ros::service::exists("/get_distance", false)) {
-    ROS_INFO("Starting distance service...");
-    distance_service_response = "Starting distance service...";
-
-    std::string command =
-        "rosrun distance_tracker_service distance_tracker_service &";
-    int result = system(command.c_str());
-
-    if (result != 0) {
-      distance_service_response = "ERROR: Failed to start service";
-      service_available_ = false;
-      return false;
-    }
-
-    // Wait for service with shorter timeout to not block GUI
-    if (distance_client_.waitForExistence(ros::Duration(5.0))) {
-      distance_service_response = "Service started successfully!";
-      service_available_ = true;
-      ros::Duration(0.5).sleep(); // Brief pause for initialization
-    } else {
-      distance_service_response = "ERROR: Service startup timeout";
-      service_available_ = false;
-      return false;
-    }
-  }
-  // Call the service
+bool CVUIROSDashInfo::call_get_distance_service() {
   std_srvs::Trigger srv;
 
-  if (distance_client_.call(srv)) {
+  if (get_distance_client_.call(srv)) {
     if (srv.response.success) {
-      ROS_INFO("Distance: %s meters", srv.response.message.c_str());
-      distance_service_response = "Distance: " + srv.response.message + " m";
-      service_available_ = true;
+      distance_display = srv.response.message;
+      ROS_INFO("Distance retrieved: %s meters", srv.response.message.c_str());
       return true;
     } else {
-      distance_service_response = "Service error: " + srv.response.message;
+      distance_display = "Service Error";
+      ROS_WARN("Get distance service returned failure: %s",
+               srv.response.message.c_str());
       return false;
     }
   } else {
-    ROS_ERROR("Failed to call distance service");
-    distance_service_response = "ERROR: Service call failed";
-    service_available_ = false;
+    distance_display = "Call Failed";
+    ROS_ERROR("Failed to call /get_distance service");
     return false;
   }
+}
+
+bool CVUIROSDashInfo::call_reset_distance_service() {
+  distance_display = "0.00";
+  ROS_INFO("Distance display reset to 0.00 (GUI simulation)");
+  return true;
 }
 
 void CVUIROSDashInfo::msgCallback(
     const robotinfo_msgs::RobotInfo10Fields::ConstPtr &msg) {
   robot_data = *msg;
-  ROS_DEBUG("Robot info received");
+  ROS_DEBUG("Robot info received: %s", msg->data_field_01.c_str());
 }
 
 void CVUIROSDashInfo::odom_msgCallback(
@@ -293,69 +187,43 @@ void CVUIROSDashInfo::run() {
                "Estimated robot position based off odometery");
 
     odo_y_offset += 15;
-    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "X");
-    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
-                 "%.0f", odom_data.pose.pose.position.x);
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 76, "X");
+    cvui::printf(frame, odo_x_offset + 31, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.1f", odom_data.pose.pose.position.x);
 
     odo_x_offset += 132;
-    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "Y");
-    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
-                 "%.0f", odom_data.pose.pose.position.y);
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 76, "Y");
+    cvui::printf(frame, odo_x_offset + 31, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.1f", odom_data.pose.pose.position.y);
 
     odo_x_offset += 132;
-    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 80, "Z");
-    cvui::printf(frame, odo_x_offset + 76, odo_y_offset + 35, 1.2, 0xffff00,
-                 "%.0f", odom_data.pose.pose.position.z);
+    cvui::window(frame, odo_x_offset, odo_y_offset, 127, 76, "Z");
+    cvui::printf(frame, odo_x_offset + 31, odo_y_offset + 35, 1.2, 0xffff00,
+                 "%.1f", odom_data.pose.pose.position.z);
 
     //        ================ Distance Service ================
 
-    int dist_x_offset = 100;
+    int dist_x_offset = 70;
     int dist_y_offset = 509;
 
-    // Service status indicator
     cvui::text(frame, dist_x_offset, dist_y_offset - 20,
                "Distance Service Status:");
 
-    // Status indicator with color coding
-    if (service_available_) {
-      cvui::printf(frame, dist_x_offset + 160, dist_y_offset - 20, 0.4,
-                   0x00ff00, "ONLINE");
-    } else {
-      cvui::printf(frame, dist_x_offset + 160, dist_y_offset - 20, 0.4,
-                   0xff0000, "OFFLINE");
-    }
-
-    // Distance button - always visible
     if (cvui::button(frame, dist_x_offset, dist_y_offset + 5, 120, 35,
                      "Get Distance")) {
-      call_distance_service();
+      call_get_distance_service();
     }
 
-    // Refresh service status button
-    if (cvui::button(frame, dist_x_offset + 130, dist_y_offset + 5, 80, 35,
-                     "Refresh")) {
-      check_distance_service_availability();
+    if (cvui::button(frame, dist_x_offset + 130, dist_y_offset + 5, 120, 35,
+                     "Reset Distance")) {
+      call_reset_distance_service();
     }
 
-    // Display distance response with dynamic sizing
-    dist_y_offset += 60;
-    cvui::window(frame, dist_x_offset, dist_y_offset, 220, 80,
-                 "Distance Service");
-
-    // Multi-line text display for longer messages
-    std::string display_text = distance_service_response;
-    if (display_text.length() > 25) {
-      // Break long text into multiple lines
-      cvui::printf(frame, dist_x_offset + 10, dist_y_offset + 25, 0.4, 0x00ffff,
-                   "%.25s", display_text.substr(0, 25).c_str());
-      if (display_text.length() > 25) {
-        cvui::printf(frame, dist_x_offset + 10, dist_y_offset + 40, 0.4,
-                     0x00ffff, "%.25s", display_text.substr(25).c_str());
-      }
-    } else {
-      cvui::printf(frame, dist_x_offset + 10, dist_y_offset + 35, 0.4, 0x00ffff,
-                   "%s", display_text.c_str());
-    }
+    // Display current distance
+    cvui::window(frame, dist_x_offset, dist_y_offset + 70, 220, 60,
+                 "Total Distance Traveled");
+    cvui::printf(frame, dist_x_offset + 70, dist_y_offset + 105, 0.7, 0x00ff00,
+                 "%s m", distance_display.c_str());
 
     // Update cvui internal stuff
     cvui::update();
