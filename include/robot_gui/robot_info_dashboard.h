@@ -6,9 +6,11 @@
 #include "robotinfo_msgs/RobotInfo10Fields.h"
 #include "std_msgs/Float64.h"
 #include "std_msgs/String.h"
+#include "std_srvs/Trigger.h"
 #include <geometry_msgs/Twist.h>
 #include <opencv2/opencv.hpp>
 #include <ros/ros.h>
+#include <sstream>
 
 class CVUIROSDashInfo {
 public:
@@ -43,6 +45,14 @@ private:
   ros::Publisher twist_pub_;
   geometry_msgs::Twist twist_msg;
   void reset_twistmsg();
+
+  // Distance tracker service
+  ros::ServiceClient distance_client_;
+  std::string distance_service_response = "Click 'Get Distance' button";
+  bool service_available_ = false;
+  bool call_distance_service();
+  bool start_distance_service();
+  void check_distance_service_availability();
 
   const std::string WINDOW_NAME = "ROBOT INFO DASHBOARD";
 };

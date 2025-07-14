@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   sensor_msgs
   nav_msgs
+  distance_tracker_service
 )
 
 # (subscribed info)
@@ -116,6 +117,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES robot_gui
 #  CATKIN_DEPENDS geometry_msgs nav_msgs robotinfo_msgs roscpp std_srvs
+ DEPENDS distance_tracker_service
 #  DEPENDS system_lib
 )
 
