@@ -17,6 +17,8 @@ CVUIROSDashInfo::CVUIROSDashInfo() {
   // Service clients - need to be initiated form cmd line
   // `rosrun distance_tracker_service distance_tracker_service`
   get_distance_client_ = nh.serviceClient<std_srvs::Trigger>("/get_distance");
+  reset_distance_client_ =
+      nh.serviceClient<std_srvs::Trigger>("/reset_distance");
 }
 
 bool CVUIROSDashInfo::call_get_distance_service() {
@@ -41,9 +43,24 @@ bool CVUIROSDashInfo::call_get_distance_service() {
 }
 
 bool CVUIROSDashInfo::call_reset_distance_service() {
-  distance_display = "0.00";
-  ROS_INFO("Distance display reset to 0.00 (GUI simulation)");
-  return true;
+  std_srvs::Trigger srv;
+
+  if (reset_distance_client_.call(srv)) {
+    if (srv.response.success) {
+      distance_display = "0.00"; // Immediately show reset value
+      ROS_INFO("Distance reset successfully: %s", srv.response.message.c_str());
+      return true;
+    } else {
+      ROS_WARN("Reset distance service returned failure: %s",
+               srv.response.message.c_str());
+      distance_display = "Reset Failed";
+      return false;
+    }
+  } else {
+    ROS_ERROR("Failed to call /reset_distance service");
+    distance_display = "Service Error";
+    return false;
+  }
 }
 
 void CVUIROSDashInfo::msgCallback(

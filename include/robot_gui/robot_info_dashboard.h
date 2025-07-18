@@ -47,6 +47,7 @@ private:
 
   // Distance tracker service
   ros::ServiceClient get_distance_client_;
+  ros::ServiceClient reset_distance_client_;
   std::string distance_display = "0.00";
   bool call_get_distance_service();
   bool call_reset_distance_service();
